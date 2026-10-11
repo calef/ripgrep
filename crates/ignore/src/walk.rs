@@ -371,9 +371,21 @@ impl DirEntryRaw {
         })
     }
 
-    // Placeholder implementation to allow compiling on non-standard platforms
-    // (e.g. wasm32).
-    #[cfg(not(any(windows, unix)))]
+    // Targets that are neither unix nor windows, other than wasm: the same
+    // entry, without the per-platform extras.
+    #[cfg(not(any(windows, unix, target_family = "wasm")))]
+    fn from_entry_os(
+        depth: usize,
+        ent: &fs::DirEntry,
+        ty: fs::FileType,
+    ) -> Result<DirEntryRaw, Error> {
+        Ok(DirEntryRaw { path: ent.path(), ty, follow_link: false, depth })
+    }
+
+    // Placeholder implementation to allow compiling on wasm32. It stays an
+    // error there: wasm32-wasip1 cannot spawn threads, so a parallel walk that
+    // got past its roots would panic in `std::thread::scope` instead.
+    #[cfg(all(target_family = "wasm", not(any(windows, unix))))]
     fn from_entry_os(
         depth: usize,
         ent: &fs::DirEntry,
@@ -421,9 +433,26 @@ impl DirEntryRaw {
         })
     }
 
-    // Placeholder implementation to allow compiling on non-standard platforms
-    // (e.g. wasm32).
-    #[cfg(not(any(windows, unix)))]
+    // Targets that are neither unix nor windows, other than wasm.
+    #[cfg(not(any(windows, unix, target_family = "wasm")))]
+    fn from_path(
+        depth: usize,
+        pb: PathBuf,
+        link: bool,
+    ) -> Result<DirEntryRaw, Error> {
+        let md =
+            fs::metadata(&pb).map_err(|err| Error::Io(err).with_path(&pb))?;
+        Ok(DirEntryRaw {
+            path: pb,
+            ty: md.file_type(),
+            follow_link: link,
+            depth,
+        })
+    }
+
+    // Placeholder implementation to allow compiling on wasm32 (see
+    // `from_entry_os` above for why it stays an error there).
+    #[cfg(all(target_family = "wasm", not(any(windows, unix))))]
     fn from_path(
         depth: usize,
         pb: PathBuf,
